@@ -20,7 +20,74 @@ migrate = Migrate(app, db)
 
 db.init_app(app)
 
+api = Api(app)
+class Campers(Resource):
+    def get(self):
+        all_campers = [c.to_dict(rules=('-signups',)) for c in Camper.query.all()]
+        return make_response(all_campers,200)
+    def post(self):
+        params = request.json
+        try:
+            camper = Camper(name=params['name'],age=params['age'])
+        except:
+            return make_response({'errors':['validation errors']},400)
+        db.session.add(camper)
+        db.session.commit()
+        return make_response(camper.to_dict(rules=('-signups',)),201)
+api.add_resource(Campers,'/campers')
+class CampersById(Resource):
+    
+    def get(self,id):
+        camper = Camper.query.get(id)
+        if not camper:
+            return make_response({'error':'Camper not found'},404)
+        return make_response(camper.to_dict(),200)
+    def patch(self,id):
+        camper = Camper.query.get(id)
+        if not camper:
+            return make_response({'error':'Camper not found'},404)
+        params = request.json
+        try:
+            for attr in params:
+                setattr(camper,attr,params[attr])
+        except:
+            return make_response({'errors':['validation errors']},400)
+        db.session.commit()
+        return make_response(camper.to_dict(rules=('-signups',)),202)
+api.add_resource(CampersById,'/campers/<id>')
+class Activities(Resource):
+    def get(self):
+        all_activities = [a.to_dict() for a in Activity.query.all()]
+        return make_response(all_activities,200)
+    #Alt:
+    # def get(self):
+    #     return make_response([a.to_dict() for a in Activity.query.all()],200)
+api.add_resource(Activities,'/activities')
+class ActivitiesById(Resource):
+    def delete(self,id):
+        activity = Activity.query.get(id)
+        if not activity:
+            return make_response({"error":"Activity not found"},404)
+        # V - Cascade in model
+        db.session.delete(activity)
+        db.session.commit()
+        return make_response("Does not Matter",204)
+api.add_resource(ActivitiesById,'/activities/<id>')
+class Signups(Resource):
+    def post(self):
+        params = request.json
+        try:
+            signup = Signup(time=params['time'],camper_id=params['camper_id'],activity_id=params['activity_id'])
+        except:
+            return make_response({"errors": ["validation errors"]}, 400)
 
+        db.session.add(signup)
+        db.session.commit()
+        # new ruleset but only works???
+        return make_response(signup.to_dict(rules = ('id','camper_id','activity_id','time','activity','camper','-activity.signups','-camper.signups')),201)
+        # return make_response(signup.to_dict(only = ('id','camper_id','activity_id','time','activity','camper')),201)
+        # return make_response(signup.to_dict(),201)
+api.add_resource(Signups,'/signups')
 @app.route('/')
 def home():
     return ''
